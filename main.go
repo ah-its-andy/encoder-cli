@@ -4,23 +4,27 @@ import (
 	"flag"
 	"log"
 	"os"
-	"path/filepath"
 
 	"github.com/ah-its-andy/encoder-cli/bootstrap"
 	"github.com/ah-its-andy/encoder-cli/taskcommand"
 )
 
 func main() {
-	taskInfoConfig := flag.String("c", "", "")
+	conf := flag.String("c", "", "")
+	task := flag.String("t", "", "")
 	flag.Parse()
 
-	if taskInfoConfig == nil || len(*taskInfoConfig) == 0 {
+	if conf == nil || len(*conf) == 0 {
 		log.Printf("-c is required")
 		os.Exit(-1)
 	}
 
-	execPath, _ := filepath.Abs("./")
-	bootstrap.InitGoConf(execPath)
+	if task == nil || len(*task) == 0 {
+		log.Printf("-t is required")
+		os.Exit(-1)
+	}
 
-	taskcommand.RunTask(*taskInfoConfig)
+	bootstrap.InitGoConf(*conf)
+
+	taskcommand.RunTask(*task)
 }
