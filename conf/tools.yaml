@@ -1,0 +1,10 @@
+tools:
+  mkvtoolnix: ""
+  ffmpeg: ""
+  
+toaac:
+  exts: 
+    - ".dtshd"
+    - ".dts"
+    - ".flac"
+    - ".aac3"

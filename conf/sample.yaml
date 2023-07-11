@@ -1,0 +1,17 @@
+context:
+    workdir: ""
+  
+tasks:
+  - mkvextract:
+    workdir: "${workdir}"
+    command: mkvextract
+      
+  - aacconvert:
+    command: toaac
+    cd-tmpdir: true
+
+  - subtitle:
+    command: "aastosrt"
+
+  - mkvmerge:
+    command: "mkvmerge"
