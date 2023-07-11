@@ -1,0 +1,6 @@
+toaac:
+  exts: 
+    - ".dtshd"
+    - ".dts"
+    - ".flac"
+    - ".aac3"

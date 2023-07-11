@@ -9,6 +9,7 @@ import (
 
 func InitGoConf(execPath string) {
 	goconf.Init(func(b goconf.Builder) {
+		b.AddSource(physicalfile.Yaml(filepath.Join(execPath, "conf", "config.yaml")))
 		b.AddSource(physicalfile.Yaml(filepath.Join(execPath, "conf", "tools.yaml")))
 	})
 }

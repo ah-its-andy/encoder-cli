@@ -1,10 +1,4 @@
 tools:
-  mkvtoolnix: ""
-  ffmpeg: ""
+  mkvtoolnix: "/usr/bin"
+  ffmpeg: "/usr/bin"
   
-toaac:
-  exts: 
-    - ".dtshd"
-    - ".dts"
-    - ".flac"
-    - ".aac3"
