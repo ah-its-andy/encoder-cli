@@ -137,7 +137,7 @@ func (c *Context) get(name string) (val string, ok bool) {
 }
 
 type CommandOptions struct {
-	Name       string            `json:"-" yaml:"-"`
+	Name       string            `json:"name" yaml:"name"`
 	Command    string            `json:"command" yaml:"command"`
 	WorkDir    string            `json:"workdir" yaml:"workdir"`
 	OutputDir  string            `json:"outputdir" yaml:"outputdir"`
@@ -147,8 +147,8 @@ type CommandOptions struct {
 }
 
 type TaskList struct {
-	Context map[string]string          `json:"context" yaml:"context"`
-	Tasks   map[string]*CommandOptions `json:"tasks" yaml:"tasks"`
+	Context map[string]string `json:"context" yaml:"context"`
+	Tasks   []*CommandOptions `json:"tasks" yaml:"tasks"`
 }
 
 func ReadTaskList(fileName string) (*TaskList, error) {

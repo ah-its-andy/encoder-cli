@@ -32,8 +32,7 @@ func runTask(configFile string) error {
 	}
 	ctx := NewContext()
 	ctx.AddSource(taskList.Context)
-	for k, task := range taskList.Tasks {
-		task.Name = k
+	for _, task := range taskList.Tasks {
 		cmd, ok := commands[task.Command]
 		if !ok {
 			return fmt.Errorf("unknown command: %v", task.Command)
