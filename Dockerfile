@@ -1,22 +1,11 @@
-FROM golang:1.20.5-bullseye AS builder
+FROM ubuntu:22.04 AS deps
 
-ADD ./ /etc/encoder-cli
+RUN apt update && apt install -y ffmpeg mkvtoolnix python3 python-is-python3 && apt clean
 
-RUN cd /etc/encoder-cli && \
- go env -w GOPROXY=https://goproxy.cn,direct && \
- go env -w GOPRIVATE=github.com/ah-its-andy && \
- go mod download 
+FROM deps AS runner
 
-RUN cd /etc/encoder-cli && go build ./
+WORKDIR /data
 
-FROM ubuntu AS base-image
+ADD repack.py repack.py
 
-RUN apt-get update && apt-get install ffmpeg mkvtoolnix -y && apt-get clean 
-
-FROM base-image
-
-COPY --from=0 /etc/encoder-cli/encoder-cli /etc/encoder-cli/encoder-cli
-
-ADD conf /etc/encoder-cli/conf
-
-CMD ["/etc/encoder-cli/encoder-cli", "-c", "/etc/encoder-cli/conf", "-t", "/etc/encoder-cli/task/default.yaml"]
+CMD ["python", "/data/repack.py", "--source_dir", "/data/source", "--output_dir", "/data/output", "--exts", "mp4|mkv"]

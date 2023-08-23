@@ -47,13 +47,37 @@ def run(source_dir, output_dir, file_extensions):
         extract_streams(file, stream_data, tempDir)
         print("Streams extracted successfully")
         audio_files = find_audio_streams(stream_data)
+        aac_converted = False
+        flac_converted = False
         for audio_file in audio_files:
-            if audio_file.lower().endswith((".aac")):
+            audio_file_full_name = os.path.join(tempDir, audio_file.file)
+            if audio_file.file.lower().endswith((".aac")):
                 continue
             else:
-                aac_file = os.path.splitext(audio_file)[0] + ".aac"
-                convert_audio_to_aac(audio_file, aac_file)
-                print(f"Converted audio file to aac file {aac_file}")
+                if aac_converted:
+                    continue
+                else:
+                    aac_file = os.path.splitext(audio_file.file)[0] + ".aac"
+                    aac_file_full_name = os.path.join(tempDir, aac_file)
+                    if is_5_1_side(audio_file.stream):
+                        convert_audio_to_aac_51(audio_file_full_name, aac_file_full_name)
+                    else:
+                        convert_audio_to_aac(audio_file_full_name, aac_file_full_name)
+                    aac_converted = True
+                    print(f"Converted audio file to aac file {aac_file}")
+
+            if audio_file.lower().endswith((".flac")):
+                continue
+            else:
+                if flac_converted:
+                    continue
+                else:
+                    flac_file = os.path.splitext(audio_file)[0] + ".flac"
+                    flac_file_full_name = os.path.join(tempDir, flac_file)
+                    convert_audio_to_flac(audio_file_full_name, flac_file_full_name)
+                    flac_converted = True
+                    print(f"Converted audio file to flac file {flac_file}")
+
         collect_subtitle_files(file, tempDir)
         for subtitle_file in os.listdir(tempDir):
             subtitle_file_path = os.path.join(tempDir, subtitle_file)
@@ -65,6 +89,8 @@ def run(source_dir, output_dir, file_extensions):
         output_file = os.path.join(output_dir, output_file_name_without_extension+".mkv")
         print("Writing MKV output file to: " + output_file)
         create_mkv_from_temp_directory(tempDir, output_file)
+        shutil.rmtree(tempDir)
+
 
 
 def ffprobe_show_streams_json(input_file):
@@ -87,12 +113,15 @@ def extract_streams(input_file, streams_data, output_dir):
         codec_name = stream["codec_name"]
         codec_type = stream["codec_type"]
 
-        # 构建输出文件路径
+        if codec_name.lower() == "subrip":
+            codec_name = "srt"
+            
         output_file = os.path.join(output_dir, f"{codec_type}_{stream_index}.{codec_name}")
 
         # 构建提取命令
         ffmpeg_command = [
             "ffmpeg",
+            "-hide_banner",
             "-i", input_file,
             "-map", f"0:{stream_index}",
             "-c", "copy",
@@ -102,23 +131,56 @@ def extract_streams(input_file, streams_data, output_dir):
         # 执行提取命令
         subprocess.run(ffmpeg_command)
 
-def find_audio_streams(streams_data):
+def is_5_1_side(audio_stream):
+    channels = audio_stream.get('channels')
+    layout = audio_stream.get('channel_layout')
+    if channels == 6 and layout == '5.1(side)':
+            return True
+    return False
+
+def find_audio_streams(streams_data):    
+    audio_streams = []
+    
+    for stream in streams_data["streams"]:
+        stream_index = stream["index"]
+        codec_type = stream["codec_type"]
+        codec_name = stream["codec_name"]
+
+        if codec_type == "audio":
+            output_file = f"{codec_type}_{stream_index}.{codec_name}"
+            audio_streams.append(AudioStream(stream, output_file))
+    
+    return audio_streams
+
+def find_video_streams(streams_data):
     output_files = []
     for stream in streams_data["streams"]:
         stream_index = stream["index"]
         codec_type = stream["codec_type"]
         codec_name = stream["codec_name"]
-        language = stream.get("tags", {}).get("language")
 
-        if codec_type == "audio" and language == "eng":
+        if codec_type == "video":
             output_file = f"{codec_type}_{stream_index}.{codec_name}"
             output_files.append(output_file)
     
     return output_files
 
+def convert_audio_to_aac_51(input_file, output_file):
+    ffmpeg_command = [
+        "ffmpeg",
+        "-hide_banner",
+        "-i", input_file,
+        "-c:a", "aac",
+        "-ac", "6",
+        "-strict", "-2",
+        output_file
+    ]
+    subprocess.run(ffmpeg_command)
+
 def convert_audio_to_aac(input_file, output_file):
     ffmpeg_command = [
         "ffmpeg",
+        "-hide_banner",
         "-i", input_file,
         "-c:a", "aac",
         "-strict", "-2",
@@ -129,6 +191,7 @@ def convert_audio_to_aac(input_file, output_file):
 def convert_audio_to_flac(input_file, output_file)  :
     ffmpeg_command = [
         "ffmpeg",
+        "-hide_banner",
         "-i", input_file,
         "-c:a", "flac",
         output_file
@@ -152,6 +215,7 @@ def convert_subtitle_to_srt(input_file):
 
         ffmpeg_command = [
             "ffmpeg",
+            "-hide_banner",
             "-i", input_file,
             output_file
         ]
@@ -175,17 +239,25 @@ def find_video_files(root_directory, file_extensions):
     for root, dirs, files in os.walk(root_directory):
         for file in files:
             file_path = os.path.join(root, file)
-
+            if file_path.find("@Recycle") != -1:
+                continue
+            if file_path.find("/.") != -1:
+                continue
             if file.lower().endswith(tuple(file_extensions.split("|"))):
                 video_files.append(file_path)
 
-    return video_files
+    return sorted(video_files)
 
 def create_mkv_from_temp_directory(temp_directory, output_file):
     command = f'mkvmerge -o "{output_file}" "{temp_directory}"/*'
     # 执行命令
     subprocess.run(command, shell=True)
 
+
+class AudioStream:
+    def __init__(self, stream, file):
+        self.stream = stream
+        self.file = file
 
 if __name__ == "__main__":
     main()
