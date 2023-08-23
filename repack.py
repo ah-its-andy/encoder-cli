@@ -66,13 +66,13 @@ def run(source_dir, output_dir, file_extensions):
                     aac_converted = True
                     print(f"Converted audio file to aac file {aac_file}")
 
-            if audio_file.lower().endswith((".flac")):
+            if audio_file.file.lower().endswith((".flac")):
                 continue
             else:
                 if flac_converted:
                     continue
                 else:
-                    flac_file = os.path.splitext(audio_file)[0] + ".flac"
+                    flac_file = os.path.splitext(audio_file.file)[0] + ".flac"
                     flac_file_full_name = os.path.join(tempDir, flac_file)
                     convert_audio_to_flac(audio_file_full_name, flac_file_full_name)
                     flac_converted = True
