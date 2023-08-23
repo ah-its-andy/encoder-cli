@@ -106,7 +106,7 @@ func (c *Context) Get(name string) (val string, ok bool) {
 		return val, false
 	}
 	if regular.MatchString(val) {
-		return c.Get(val)
+		return c.get(val)
 	}
 	return val, true
 }
@@ -132,7 +132,7 @@ func (c *Context) get(name string) (val string, ok bool) {
 		}
 		return retVal, true
 	} else {
-		return c.getVal(name)
+		return name, true
 	}
 }
 
