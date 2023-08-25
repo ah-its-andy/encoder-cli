@@ -49,9 +49,18 @@ def run(source_dir, output_dir, file_extensions):
         audio_files = find_audio_streams(stream_data)
         aac_converted = False
         flac_converted = False
+        enableAACConvert = os.environ.get("ENABLE_ACC_CONVERT", "1")
+        if enableAACConvert != "1":
+            aac_converted = True
+        enableFlacConvert = os.environ.get("ENABLE_FLAC_CONVERT", "1")
+        if enableFlacConvert != "1":
+            flac_converted = True
+        removeAAC = os.environ.get("REMOVE_AAC", "0")
         for audio_file in audio_files:
             audio_file_full_name = os.path.join(tempDir, audio_file.file)
             if audio_file.file.lower().endswith((".aac")):
+                if removeAAC == "1":
+                    os.remove(audio_file_full_name)
                 continue
             else:
                 if aac_converted:
@@ -82,8 +91,10 @@ def run(source_dir, output_dir, file_extensions):
         for subtitle_file in os.listdir(tempDir):
             subtitle_file_path = os.path.join(tempDir, subtitle_file)
             if os.path.isfile(subtitle_file_path) and subtitle_file.lower().endswith((".ass", ".ssa")):
-                convert_subtitle_to_srt(subtitle_file_path)
-                print(f"Converted subtitle to srt {subtitle_file}")
+                enableSRTConvert = os.environ.get("ENABLE_SRT_CONVERT", "1")
+                if enableSRTConvert == "1":
+                    convert_subtitle_to_srt(subtitle_file_path)
+                    print(f"Converted subtitle to srt {subtitle_file}")
         output_file_name = os.path.basename(file)
         output_file_name_without_extension, output_file_name_extension = os.path.splitext(output_file_name)
         output_file = os.path.join(output_dir, output_file_name_without_extension+".mkv")
@@ -105,31 +116,67 @@ def ffprobe_show_streams_json(input_file):
     result = subprocess.run(command, capture_output=True, text=True)
     output = result.stdout.strip()
     data = json.loads(output)
+    
+    allowed_languages = get_allowed_languages()
+    loaded_streams = data["streams"]
+    filter_streams = []
+    for stream in loaded_streams:
+        stream_index = stream["index"]
+        codec_type = stream["codec_type"]
+        if 'tags' in stream:
+            if 'language' in stream['tags']:
+                if stream['tags']['language'].lower() in allowed_languages:
+                    filter_streams.append(stream)
+                else:
+                    print(f"Stream {codec_type}_{stream_index} with language {stream['tags']['language']} is not allowed")
+                    continue
+            else:
+                filter_streams.append(stream)
+        else:
+            filter_streams.append(stream)
+
+    data["streams"] = filter_streams
     return data
+
+def get_allowed_languages():
+    allowed_languages = os.environ.get("LANGUAGES", "eng,chi,zho")
+    return allowed_languages.split(",")
+
+def format_file_name(stream):
+    stream_index = stream["index"]
+    codec_name = stream["codec_name"]
+    codec_type = stream["codec_type"]
+    language = ""
+    if 'tags' in stream and 'language' in stream['tags']:
+        language = stream['tags']['language'].lower()
+
+    if codec_name.lower() == "subrip":
+        codec_name = "srt"
+    output_file = ""
+    if language == "":
+        output_file = f"{codec_type}_{stream_index}.{codec_name}"
+    else:
+        output_file = f"{codec_type}_{stream_index}.{language}.{codec_name}"
+    return output_file
 
 def extract_streams(input_file, streams_data, output_dir):
     for stream in streams_data["streams"]:
         stream_index = stream["index"]
-        codec_name = stream["codec_name"]
-        codec_type = stream["codec_type"]
+        output_file_name = format_file_name(stream)
+        output_file = os.path.join(output_dir, output_file_name)
+        extract_stream(input_file, stream_index, output_file)
 
-        if codec_name.lower() == "subrip":
-            codec_name = "srt"
-            
-        output_file = os.path.join(output_dir, f"{codec_type}_{stream_index}.{codec_name}")
 
-        # 构建提取命令
-        ffmpeg_command = [
-            "ffmpeg",
-            "-hide_banner",
-            "-i", input_file,
-            "-map", f"0:{stream_index}",
-            "-c", "copy",
-            output_file
-        ]
-
-        # 执行提取命令
-        subprocess.run(ffmpeg_command)
+def extract_stream(input_file, stream_index, output_file):
+    ffmpeg_command = [
+        "ffmpeg",
+        "-hide_banner",
+        "-i", input_file,
+        "-map", f"0:{stream_index}",
+        "-c", "copy",
+        output_file
+    ]
+    subprocess.run(ffmpeg_command)
 
 def is_5_1_side(audio_stream):
     channels = audio_stream.get('channels')
@@ -142,12 +189,10 @@ def find_audio_streams(streams_data):
     audio_streams = []
     
     for stream in streams_data["streams"]:
-        stream_index = stream["index"]
         codec_type = stream["codec_type"]
-        codec_name = stream["codec_name"]
 
         if codec_type == "audio":
-            output_file = f"{codec_type}_{stream_index}.{codec_name}"
+            output_file = format_file_name(stream)
             audio_streams.append(AudioStream(stream, output_file))
     
     return audio_streams
@@ -155,12 +200,10 @@ def find_audio_streams(streams_data):
 def find_video_streams(streams_data):
     output_files = []
     for stream in streams_data["streams"]:
-        stream_index = stream["index"]
         codec_type = stream["codec_type"]
-        codec_name = stream["codec_name"]
 
         if codec_type == "video":
-            output_file = f"{codec_type}_{stream_index}.{codec_name}"
+            output_file = format_file_name(stream)
             output_files.append(output_file)
     
     return output_files
@@ -252,7 +295,6 @@ def create_mkv_from_temp_directory(temp_directory, output_file):
     command = f'mkvmerge -o "{output_file}" "{temp_directory}"/*'
     # 执行命令
     subprocess.run(command, shell=True)
-
 
 class AudioStream:
     def __init__(self, stream, file):
